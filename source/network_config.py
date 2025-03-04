@@ -1,0 +1,116 @@
+import json
+
+start_port = 10000
+delay = 5
+end_symbol = "###"
+server1 = {
+    "send_port" :start_port+1,
+    "recv_port": start_port+2,
+    "name" : "server1",
+    "id" : 1,
+    "cluster" : 1
+}
+
+server2 = {
+    "send_port" :start_port+3,
+    "recv_port": start_port+4,
+    "name" : "server2",
+    "id" : 2,
+    "cluster" : 1
+}
+
+server3 = {
+    "send_port" :start_port+5,
+    "recv_port": start_port+6,
+    "name" : "server3",
+    "id" : 3,
+    "cluster" : 1
+}
+
+server4 = {
+    "send_port" :start_port+7,
+    "recv_port": start_port+8,
+    "name" : "server4",
+    "id" : 4,
+    "cluster" : 2
+}
+
+server5 = {
+    "send_port" :start_port+9,
+    "recv_port": start_port+10,
+    "name" : "server5",
+    "id" : 5,
+    "cluster" : 2
+}
+
+server6 = {
+    "send_port" :start_port+11,
+    "recv_port": start_port+12,
+    "name" : "server6",
+    "id" : 6,
+    "cluster" : 2
+}
+
+server7 = {
+    "send_port" :start_port+13,
+    "recv_port": start_port+14,
+    "name" : "server7",
+    "id" : 7,
+    "cluster" : 3
+}
+
+server8 = {
+    "send_port" :start_port+15,
+    "recv_port": start_port+16,
+    "name" : "server8",
+    "id" : 8,
+    "cluster" : 3
+}
+
+server9 = {
+    "send_port" :start_port+17,
+    "recv_port": start_port+18,
+    "name" : "server9",
+    "id" : 9,
+    "cluster" : 3
+}
+
+server_configs = {
+    1 : server1,
+    2: server2,
+    3: server3,
+    4 : server4,
+    5 : server5,
+    6 : server6,
+    7 : server7,
+    8 : server8,
+    9 : server9
+}
+
+clientA = {
+    "send_port" :start_port+18,
+    "recv_port": start_port+19,
+    "name" : "A",
+    "initial_amount" : 10
+}
+
+clientB = {
+    "send_port" :start_port+20,
+    "recv_port": start_port+21,
+    "name" : "B",
+    "initial_amount" : 10
+}
+
+client_configs = {
+    "A": clientA,
+    "B": clientB
+}
+
+with open('../logs/transactions.txt', 'r') as myfile:
+    content = myfile.readlines()
+transaction_list = [x.strip() for x in content]
+print(transaction_list)
+
+with open('../logs/datastore.json', 'r') as myfile:
+    datastore = json.load(myfile)
+# print(datastore)
