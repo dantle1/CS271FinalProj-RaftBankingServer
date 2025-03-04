@@ -76,15 +76,15 @@ server9 = {
 }
 
 server_configs = {
-    1 : server1,
-    2: server2,
-    3: server3,
-    4 : server4,
-    5 : server5,
-    6 : server6,
-    7 : server7,
-    8 : server8,
-    9 : server9
+    "server1" : server1,
+    "server2" : server2,
+    "server3" : server3,
+    "server4" : server4,
+    "server5" : server5,
+    "server6" : server6,
+    "server7" : server7,
+    "server8" : server8,
+    "server9" : server9
 }
 
 clientA = {

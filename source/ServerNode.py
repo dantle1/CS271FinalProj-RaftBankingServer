@@ -74,7 +74,7 @@ class ServerNode():
         for name in self.other_names:
             self.name2lastReqTime[name] = time.time()
 
-        self.init_txns_list(init_txns)
+       #  self.init_txns_list(init_txns)
         self.client2init_balance = {}
         # for client in client_configs:
         #     self.client2init_balance[client] = float(client_configs[client]["initial_amount"])
@@ -630,7 +630,7 @@ class ServerNode():
         
 
 def main():
-    server_name = int(sys.argv[1])
+    server_name = "server" + sys.argv[1]
     server = ServerNode(server_name, server_configs, client_configs, init_txns=transaction_list)
     server.start()
 

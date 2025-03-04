@@ -42,6 +42,7 @@ class RaftTCPServer():
         self.end_symbol = network_config.end_symbol
         self.name2outports = {}
         for name in configs:
+            # print(name)
             if name == config_name:
                 continue
             config = configs[name]
@@ -80,14 +81,18 @@ class RaftTCPServer():
         t1.start()
         
     def send(self, name, data):
+        # print(type(name))
+        # print(self.name2outports)
+        # print(self.name2outports[name])
         try:
             port = self.name2outports[name]
+            
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_address = (self.host, port)
             sock.connect(server_address)
             push_data(sock, data)
             sock.close()
         except Exception as e:
-            print(e)
+            print("ERROR: ",  e)
             print("NETWORK ISSUE (site failure?) => SEND FAILURE")
         
