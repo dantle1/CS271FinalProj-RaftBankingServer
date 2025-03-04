@@ -35,6 +35,7 @@ class ServerNode():
         self.name = config_name
         self.config = config
         self.cluster = config['cluster']
+        self.dataStore = dataStore(self.cluster)
         self.role = follower_role
         self.avg_election_timeout = avg_election_timeout
         self.election_timeout = gen_timeout(self.avg_election_timeout)
@@ -425,12 +426,13 @@ class ServerNode():
             return
         print("-----print balance")
         client = req['source']
-        client2balance = self.calculate_balance()
+        item_id = req['item_id']
+        item_balance = self.dataStore[str(item_id)]
         data = {
             "type" : printBalanceType,
             "source" : self.name,
-            "balance" :  client2balance[client],
-            "blockchain": self.block_chain.get_entries_start_at_list(0)
+            "item_id" : item_id,
+            "balance" :  item_balance
         }
         data = json.dumps(data)
         self.tcpServer.send(client, data)

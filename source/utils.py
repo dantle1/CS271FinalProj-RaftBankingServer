@@ -2,6 +2,13 @@ import hashlib
 import os
 import random
 import base64
+import json
+
+def dataStore(cluster):
+    with open("../logs/datastore.json", "r") as file:
+        data_store = json.load(file)
+    key = "cluster_" + str(cluster)
+    return data_store[key]
 
 def getClusterofItem(x):
     # invalid cluster

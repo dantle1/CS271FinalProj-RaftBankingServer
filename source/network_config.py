@@ -102,8 +102,8 @@ clientB = {
 }
 
 client_configs = {
-    "A": clientA,
-    "B": clientB
+    'A': clientA,
+    'B': clientB
 }
 
 with open('../logs/transactions.txt', 'r') as myfile:

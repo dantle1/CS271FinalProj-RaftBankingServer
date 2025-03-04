@@ -24,6 +24,7 @@ class Client():
         self.txn_queue = queue.Queue()
         self.txn_id = 0
         self.estimate_leader = None
+        self.estimate_leader_2 = None
         self.id2amount = {}
         self.cmd_thread = threading.Thread(
             target=self.handle_cmds, daemon=True)
@@ -62,7 +63,7 @@ class Client():
                 self.commandList()
 
     def handle_printBalance(self, req):
-        print("balance from server:", req['balance'])
+        print(f"User {req['item_id']} has a balance of {req['balance']} units")
     
     def start(self):
         self.tcpServer.start_server(self.rpc_queue)
@@ -113,8 +114,6 @@ class Client():
                     ta, tb, amount = self.txns[txn_id]
                     self.send_clientCommand(ta, tb, amount, txn_id)
 
-            # print balance and block chain command
-
     def send_clientCommand(self, ta, tb, amount, txn_id):
         data = {
             'type': clientCommandType,
@@ -124,10 +123,10 @@ class Client():
             'txn_id' : txn_id,
             'source' : self.name
         }
-        
-        leader = self.estimate_leader
-        if self.estimate_leader == None:
-            leader = random.choice(self.server_names)
+        if getClusterofItem(int(ta)) == getClusterofItem(int(tb)):
+            leader = self.estimate_leader
+            if self.estimate_leader == None:
+                leader = random.choice(self.server_names)
         print("sending txn to esitmated leader", leader)
         data = json.dumps(data)
         # print(data)
@@ -142,10 +141,11 @@ class Client():
         'source': self.name,
         'item_id': item_id  # Request balance for a specific client ID
         }
+        # print("cluster: ", getClusterofItem(item_id))
+        servers_in_cluster = [name for name in self.server_names if server_configs[name]['cluster'] == getClusterofItem(item_id)]
+        leader = self.estimate_leader or random.choice(servers_in_cluster)
 
-        leader = self.estimate_leader or random.choice(self.server_names)
-
-        for server in self.server_names:
+        for server in servers_in_cluster:
             print(f"Requesting balance for Client {item_id} from {server}")
             str_data = json.dumps(data)
             self.tcpServer.send(server, str_data)
