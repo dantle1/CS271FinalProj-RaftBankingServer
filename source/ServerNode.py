@@ -350,7 +350,8 @@ class ServerNode():
         self.name2nextIndex[name] = next_index
         
     def majority(self):
-        return int((len(server_configs)-len(self.crash_list))/2)+1
+        servers_in_cluster = [server for server in server_configs.values() if server['cluster'] == self.cluster]
+        return int((len(servers_in_cluster)-len(self.crash_list))/2)+1
         # return int(len(configs)/2)+1
 
     def count_logged_nodes_num(self, i):
