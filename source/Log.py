@@ -2,50 +2,48 @@ from utils import *
 import json
 
 class Block:
-    def __init__(self, ta, tb, term, prev_header_hash, nonce=None):
+    def __init__(self, ta, term):
         self.ta = ta
-        self.tb = tb
         self.term = term
-        self.prev_header_hash = prev_header_hash
-        self.txn_hash = sha256_byte(sha256_str(ta) + sha256_str(tb))
-        self.nonce = nonce
         self.infos = []
-        if nonce == None:
-            self.nonce = find_valid_nonce(ta, tb)
-        self.final_hash = sha256_byte(self.txn_hash + self.nonce)
+        # The other attributes are now omitted for simplicity
+        # self.prev_header_hash = prev_header_hash
+        # self.txn_hash = sha256_byte(sha256_str(ta))
+        # self.nonce = nonce
+        # if nonce == None:
+        #     self.nonce = find_valid_nonce(ta)
+        # self.final_hash = sha256_byte(self.txn_hash + self.nonce)
 
-    def hash(self):
-        val = sha256_str(str(self.term) + self.prev_header_hash.hex()
-                         + self.txn_hash.hex() + self.nonce.hex())
-        return val
+    # def hash(self):
+    #     val = sha256_str(str(self.term) + self.prev_header_hash.hex()
+    #                      + self.txn_hash.hex() + self.nonce.hex())
+    #     return val
 
     def add_info(self, info):
         self.infos.append(info)
 
     def create_dummy_block():
-        return Block("", "", 0, bytes(0))
+        return Block("", 0)
 
     def __str__(self):
-        return "term: %d, ta: %s, tb: %s, prev_hash: %s" % (self.term, self.ta, self.tb, self.prev_header_hash.hex())
-
+        return "term: %d, ta: %s" % (self.term, self.ta)
 
     def to_dict(self):
         return {
-            "txns": [self.ta, self.tb],
-            "nonce": encode_bytes(self.nonce),
-            "term" : self.term,
-            "prev_header_hash": encode_bytes(self.prev_header_hash),
-            "txn_hash": encode_bytes(self.txn_hash),
-            "final_hash": encode_bytes(self.final_hash)
+            "txn": self.ta,  # Changed to hold only one transaction
+            "term": self.term,
+            # "nonce": encode_bytes(self.nonce),
+            # "prev_header_hash": encode_bytes(self.prev_header_hash),
+            # "txn_hash": encode_bytes(self.txn_hash),
+            # "final_hash": encode_bytes(self.final_hash)
         }
 
     def from_dict(d):
-        ta = d["txns"][0]
-        tb = d["txns"][1]
-        nonce = decode_bytes(d["nonce"])
+        ta = d["txn"]  # Changed to match single transaction
         term = d["term"]
-        prev_header_hash = decode_bytes(d["prev_header_hash"])
-        return Block(ta, tb, term, prev_header_hash, nonce)
+        # nonce = decode_bytes(d["nonce"])
+        # prev_header_hash = decode_bytes(d["prev_header_hash"])
+        return Block(ta, term)
 
     def print_block(self):
         data = self.to_dict()
@@ -53,9 +51,7 @@ class Block:
             print(key, ":", data[key])
 
 
-
-
-class BlockChain():
+class Log():
     def __init__(self):
         self.chain = [Block.create_dummy_block()]
         self.commitIndex = 0
@@ -68,7 +64,6 @@ class BlockChain():
 
     def pop(self, idx):
         self.chain.pop(idx)
-
 
     def __len__(self):
         return len(self.chain)
@@ -114,7 +109,6 @@ class BlockChain():
         for i in range(self.get_commitIndex()+1):
             if info in self.chain[i].infos:
                 return True
-
         return False
 
     def has_txn(self, info):
@@ -122,4 +116,3 @@ class BlockChain():
             if info in self.chain[i].infos:
                 return True
         return False
-

@@ -40,7 +40,7 @@ class ServerNode():
         self.election_timeout = gen_timeout(self.avg_election_timeout)
         self.vote_for = None
         self.received_vote = 0
-        self.block_chain = BlockChain()
+        self.log = Log()
         self.term = 0
         self.other_names = [name for name in server_configs if server_configs[name]['cluster'] == self.cluster]
         self.other_names.remove(self.name)
@@ -74,7 +74,7 @@ class ServerNode():
         for name in self.other_names:
             self.name2lastReqTime[name] = time.time()
 
-       #  self.init_txns_list(init_txns)
+        self.init_txns_list(init_txns)
         self.client2init_balance = {}
         # for client in client_configs:
         #     self.client2init_balance[client] = float(client_configs[client]["initial_amount"])
@@ -82,37 +82,31 @@ class ServerNode():
 
     def calculate_balance(self):
         client2balance = {}
-        for client in self.client2init_balance:
-            balance = self.client2init_balance[client]
-            # for block in self.block_chain.chain[:self.block_chain.commitIndex + 1]:
-            for block in self.block_chain.chain[:]:
-                t = block.ta.split()
-                if len(t) != 3:
-                    continue
-                if t[0] == client:
-                    balance -= float(t[2])
-                elif t[1] == client:
-                    balance += float(t[2])
-                t = block.tb.split()
-                if t[0] == client:
-                    balance -= float(t[2])
-                elif t[1] == client:
-                    balance += float(t[2])
-            client2balance[client] = balance
+        # Calculate balances based on committed transactions
+        for block in self.log.chain[:self.log.commitIndex + 1]:
+            transaction = block.ta
+            t = transaction.split()
+            if len(t) != 3:
+                continue
+            sender, receiver, amount = t[0], t[1], int(t[2])
+            print(sender)
+            print(receiver)
+            print(amount)
+            if sender in client2balance:
+                client2balance[sender] -= amount
+            if receiver in client2balance:
+                client2balance[receiver] += amount
+        # self.log.print_chain()
         return client2balance
 
     def init_txns_list(self, txns):
-        i = 0 
-        while i + 1 < len(txns):
-            j = i + 1
-            new_block = Block(txns[i], txns[j], self.term, self.block_chain.get(-1).hash())
-            self.block_chain.append(new_block)
-            i += 2
+        for i in range(len(txns)):
+            new_block = Block(txns[i], self.term)
+            self.log.append(new_block)
         if i == len(txns)-1:
             self.txn_buffer = [(txns[i], (None, None))]
-
-        self.block_chain.commitIndex = len(self.block_chain) - 1
-        # self.block_chain.print_chain()
+        self.log.commitIndex = len(self.log) - 1
+        # self.log.print_chain()
 
     def start(self):
         self.last_refresh_time = time.time()
@@ -173,8 +167,8 @@ class ServerNode():
         self.vote_for = self.name
         self.received_vote = 1
         self.send_requestVotes()
-        print("majority=", self.majority())
-        print(self.crash_list)
+        # print("majority=", self.majority())
+        # print(self.crash_list)
         if self.received_vote >= self.majority():
             self.trans_leader()
 
@@ -204,7 +198,7 @@ class ServerNode():
 
         # self.txn_buffer = []
         for name in self.other_names:
-            self.name2nextIndex[name] = self.block_chain.lastLogIndex() + 1
+            self.name2nextIndex[name] = self.log.lastLogIndex() + 1
             self.name2lastContactTime[name] = time.time()
             self.name2loggedIndex[name] = set()
             self.name2lastReqTime[name] = time.time()
@@ -234,9 +228,9 @@ class ServerNode():
         '''
         todo
         '''
-        not_completer = self.block_chain.lastLogTerm() > lastLogTerm or\
-                        (self.block_chain.lastLogTerm() == lastLogTerm and\
-                         self.block_chain.lastLogIndex() > lastLogIndex)
+        not_completer = self.log.lastLogTerm() > lastLogTerm or\
+                        (self.log.lastLogTerm() == lastLogTerm and\
+                         self.log.lastLogIndex() > lastLogIndex)
         return not not_completer
 
     def handle_startElection_req(self, req):
@@ -246,9 +240,9 @@ class ServerNode():
         self.trans_candidate()
 
     def has_matched_block(self, index, term):
-        if index <0 or index >= len(self.block_chain):
+        if index <0 or index >= len(self.log):
             return False
-        block = self.block_chain.get(index)
+        block = self.log.get(index)
         return block.term == term
 
     def handle_appendEntries_req(self, req):
@@ -288,8 +282,8 @@ class ServerNode():
             return
         
         # append new entries
-        self.block_chain.update_chain_at(prevLogIndex+1, block_list)
-        self.block_chain.commitIndex = commitIndex
+        self.log.update_chain_at(prevLogIndex+1, block_list)
+        self.log.commitIndex = commitIndex
         # advance state machine - balance
 
         # respond
@@ -365,11 +359,11 @@ class ServerNode():
         return count
 
     def check_update_commit(self):
-        start = self.block_chain.get_commitIndex() + 1
-        end = len(self.block_chain)
+        start = self.log.get_commitIndex() + 1
+        end = len(self.log)
         for i in range(start, end):
             if self.count_logged_nodes_num(i) >= self.majority():
-                self.block_chain.commit_next()
+                self.log.commit_next()
             else:
                 break
             
@@ -420,10 +414,11 @@ class ServerNode():
             assert self.name2nextIndex[name] >= 0
 
     def handle_printBalance_req(self, req):
-        print("----commit index:", self.block_chain.get_commitIndex())
+        print("----commit index:", self.log.get_commitIndex())
         if self.role != leader_role:
             return
         print("-----print balance")
+        self.log.print_chain()
         client = req['source']
         item_id = req['item_id']
         item_balance = self.dataStore[str(item_id)]
@@ -446,9 +441,11 @@ class ServerNode():
         }
         '''
         if self.role == candidate_role:
+            print('CANDIDATE')
             # discard, let client reissue
             return
         elif self.role == follower_role:
+            print('FOLLOWER')
             # redirect
             name = self.leader
             if self.leader == None:
@@ -457,6 +454,7 @@ class ServerNode():
                 name = self.other_names[0]
             self.redirect_clientCommand(name, req)
         elif self.role == leader_role:
+            print('LEADER')
             send_client = req['send_client']
             recv_client = req['recv_client']
             amount = req['amount']
@@ -465,10 +463,10 @@ class ServerNode():
 
             temp = str(send_client) + " " + str(recv_client) + " " + str(amount)
             txn_info = (client_name, txn_id)
-            if self.block_chain.txn_committed(txn_info):
+            if self.log.txn_committed(txn_info):
                 self.response_client_txn(txn_info)
                 return
-            if self.block_chain.has_txn(txn_info):
+            if self.log.has_txn(txn_info):
                 # do nothing, wait for commit
                 return
             if len(self.txn_buffer)==1:
@@ -477,14 +475,14 @@ class ServerNode():
 
             self.txn_buffer.append((temp, txn_info))
             if len(self.txn_buffer) == 2:
-                new_block = Block(self.txn_buffer[0][0], self.txn_buffer[1][0], self.term, self.block_chain.get(-1).hash())
+                new_block = Block(self.txn_buffer[0][0], self.txn_buffer[1][0], self.term, self.log.get(-1).hash())
                 # client_name = txn_buffer[1][0]
                 # txn_id = txn_buffer[1][1]
                 txn_info_a = self.txn_buffer[0][1]
                 txn_info_b = self.txn_buffer[1][1]
                 new_block.add_info(txn_info_a)
                 new_block.add_info(txn_info_b)
-                self.block_chain.append(new_block)
+                self.log.append(new_block)
                 self.txn_buffer = []
 
     def  update_last_req_time(self, req):
@@ -537,7 +535,8 @@ class ServerNode():
                 self.leader_update_followers()
             while not self.rpc_queue.empty():
                 req = self.rpc_queue.get()
-                print(self.name, "term", self.term, ":", req)
+                if (req["type"] == appendEntriesType and req['is_heartbeat'] == False):
+                    print(self.name, "term", self.term, ":", req)
                 self.handle_req(req)
         return
 
@@ -546,8 +545,8 @@ class ServerNode():
         data = {
             "type": requestVoteType,
             "term": self.term,
-            "lastLogIndex": len(self.block_chain) - 1,
-            "lastLogTerm": self.block_chain.get(-1).term,
+            "lastLogIndex": len(self.log) - 1,
+            "lastLogTerm": self.log.get(-1).term,
             "source": self.name
         }
         data = json.dumps(data)
@@ -564,11 +563,11 @@ class ServerNode():
             "type": appendEntriesType,
             "term": self.term,
             "prevLogIndex": prevLogIndex,
-            "prevLogTerm": self.block_chain.get(prevLogIndex).term,
+            "prevLogTerm": self.log.get(prevLogIndex).term,
             "source": self.name,
             "leaderId": self.name,
-            "entries": self.block_chain.get_entries_start_at_list(next_index),
-            "commitIndex": self.block_chain.get_commitIndex(),
+            "entries": self.log.get_entries_start_at_list(next_index),
+            "commitIndex": self.log.get_commitIndex(),
             "is_heartbeat": is_heartbeat
         }
         data = json.dumps(data)
@@ -617,8 +616,8 @@ class ServerNode():
         interval = self.avg_election_timeout/5
         for name in self.name2nextIndex:
             nextIndex = self.name2nextIndex[name]
-            # print("--------", self.block_chain.lastLogIndex(), nextIndex)
-            if self.block_chain.lastLogIndex() < nextIndex:
+            # print("--------", self.log.lastLogIndex(), nextIndex)
+            if self.log.lastLogIndex() < nextIndex:
                 # heartbeat
                 if time.time() -  self.name2lastContactTime[name] > interval:
                     self.send_appendEntries(name, is_heartbeat=True)

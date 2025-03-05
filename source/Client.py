@@ -111,6 +111,7 @@ class Client():
             if time.time() - last_upload_time > interval:
                 while not self.txn_queue.empty():
                     ta, tb, amount, txn_id = self.txn_queue.get()
+                    # print(ta, tb, amount, txn_id)
                     assert not (txn_id in self.txns)
                     self.txns[txn_id] = (ta, tb, amount)
                 last_upload_time = time.time()
@@ -182,6 +183,7 @@ class Client():
             return
         amount = parsed_txn[3]
         self.txn_queue.put((ta, tb, amount, self.txn_id))
+        print(self.txn_queue)
         self.id2amount[self.txn_id] = amount
         self.txn_id += 1
 

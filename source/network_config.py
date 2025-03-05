@@ -106,7 +106,7 @@ client_configs = {
     'B': clientB
 }
 
-with open('../logs/transactions.txt', 'r') as myfile:
+with open('input_file.txt', 'r') as myfile:
     content = myfile.readlines()
 transaction_list = [x.strip() for x in content]
 print(transaction_list)
