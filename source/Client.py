@@ -32,7 +32,7 @@ class Client():
     def commandList(self):
         print('1. transfer/t <x> <y> <amt> : Transfer money from X to Y.')
         print('2. balance/b <x> : Print current balance of X.')
-        print('3. datastore/d <x>: Print all committed transactions for Xth cluster.')
+        print('3. commitlist/c <x>: Print all committed transactions for Xth cluster.')
         print('4. help/h: Show command list again.')
     
     def userInput(self):
@@ -56,11 +56,24 @@ class Client():
             elif re.match(r"^(?:help|h)$", input_txn):
                 self.commandList()
             # datastore
-            elif re.match(r"^(?:datastore|d)$", input_txn):
-                self.request_datastore()
+            elif re.match(r"^(?:commitlist|c) (\d+)$", input_txn):
+                parsed_text = input_txn.split()
+                cluster_id = int(parsed_text[1])
+                self.print_commit_list(cluster_id)
             else:
                 print('No Valid Command, Select from one below:')
                 self.commandList()
+
+    def print_commit_list(self, cluster_id):
+        filename = f"../logs/cluster_{cluster_id}_log.txt"
+        try:
+            with open(filename, "r") as myfile:
+                for line in myfile:
+                    print(line.strip())
+        except FileNotFoundError:
+            print(f"ERROR: Invalid Cluster id {cluster_id}.")
+            
+
 
     def handle_printBalance(self, req):
         print(f"User {req['item_id']} has a balance of {req['balance']} units")
@@ -69,12 +82,6 @@ class Client():
         self.tcpServer.start_server(self.rpc_queue)
         self.cmd_thread.start()
         self.userInput()
-
-    def add_transaction(self):
-        '''
-        prompt user for standard input of transactions
-        '''
-        pass
 
     def handle_complete_txn(self, req):
         print("---complete")
@@ -86,8 +93,6 @@ class Client():
 
         self.balance = float(req['balance'])
         print("updated balance:", self.balance)
-
-    
 
     def handle_cmds(self):
         self.txns = {}
@@ -123,17 +128,34 @@ class Client():
             'txn_id' : txn_id,
             'source' : self.name
         }
-        if getClusterofItem(int(ta)) == getClusterofItem(int(tb)):
+        cluster_a = getClusterofItem(int(ta))
+        cluster_b = getClusterofItem(int(tb))
+        # intra shard transaction
+        if cluster_a == cluster_b:
             leader = self.estimate_leader
+            servers_in_cluster = [name for name in self.server_names if server_configs[name]['cluster'] == cluster_a]
             if self.estimate_leader == None:
-                leader = random.choice(self.server_names)
-        print("sending txn to esitmated leader", leader)
-        data = json.dumps(data)
-        # print(data)
-        self.tcpServer.send(leader, data)
+                leader = random.choice(servers_in_cluster)
+            print(f"sending txn to server {leader}, who is the leader of cluster {cluster_a}")
+            data = json.dumps(data)
+            # print(data)
+            self.tcpServer.send(leader, data)
+        # cross shard interaction
+        else:
+            leader_1 = self.estimate_leader
+            leader_2 = self.estimate_leader_2
+            servers_in_cluster1 = [name for name in self.server_names if server_configs[name]['cluster'] == cluster_a]
+            servers_in_cluster2 = [name for name in self.server_names if server_configs[name]['cluster'] == cluster_b]
+            if self.estimate_leader == None:
+                leader1 = random.choice(servers_in_cluster1)
+            if self.estimate_leader_2 == None:
+                leader2 = random.choice(servers_in_cluster2)
+            print(f"sending txn to server {leader_1}, who is the leader of cluster {cluster_a}")
+            print(f"sending txn to server {leader_2}, who is the leader of cluster {cluster_b}")
+            data = json.dumps(data)
+            self.tcpServer.send(leader_1, data)
+            self.tcpServer.send(leader_2, data)
 
-    def update_client(self):
-        pass
 
     def request_balance(self, item_id):
         data = {
@@ -143,15 +165,11 @@ class Client():
         }
         # print("cluster: ", getClusterofItem(item_id))
         servers_in_cluster = [name for name in self.server_names if server_configs[name]['cluster'] == getClusterofItem(item_id)]
-        leader = self.estimate_leader or random.choice(servers_in_cluster)
-
         for server in servers_in_cluster:
             print(f"Requesting balance for Client {item_id} from {server}")
             str_data = json.dumps(data)
             self.tcpServer.send(server, str_data)
 
-    
-            
     def upload_transaction(self, input_txn):
         parsed_txn = input_txn.split()
         if len(parsed_txn) != 4:
@@ -166,7 +184,6 @@ class Client():
         self.txn_queue.put((ta, tb, amount, self.txn_id))
         self.id2amount[self.txn_id] = amount
         self.txn_id += 1
-
 
 def client_main():
     client_name = sys.argv[1]

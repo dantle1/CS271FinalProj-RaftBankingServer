@@ -86,7 +86,6 @@ class RaftTCPServer():
         # print(self.name2outports[name])
         try:
             port = self.name2outports[name]
-            
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_address = (self.host, port)
             sock.connect(server_address)

@@ -1,4 +1,4 @@
-from Block import *
+from source.Log import *
 from utils import *
 import random
 def test1():

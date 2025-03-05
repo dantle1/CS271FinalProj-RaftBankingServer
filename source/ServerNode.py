@@ -3,7 +3,7 @@ import time
 from utils import *
 import queue
 import threading
-from Block import *
+from Log import *
 from RaftTCPServer import *
 from network_config import *
 follower_role = 0
@@ -30,7 +30,6 @@ def start_all_servers():
 class ServerNode():
     def __init__(self, config_name, server_configs, client_configs, avg_election_timeout=10,
                  init_txns=None):
-        print("Configs:", server_configs)
         config = server_configs[config_name]
         self.name = config_name
         self.config = config
@@ -113,7 +112,7 @@ class ServerNode():
             self.txn_buffer = [(txns[i], (None, None))]
 
         self.block_chain.commitIndex = len(self.block_chain) - 1
-        self.block_chain.print_chain()
+        # self.block_chain.print_chain()
 
     def start(self):
         self.last_refresh_time = time.time()
@@ -446,7 +445,6 @@ class ServerNode():
             amount:
         }
         '''
-        self.block_chain.print_chain()
         if self.role == candidate_role:
             # discard, let client reissue
             return
@@ -465,7 +463,7 @@ class ServerNode():
             txn_id = req['txn_id']
             client_name = req['source']
 
-            temp = send_client + " " + recv_client + " " + str(amount)
+            temp = str(send_client) + " " + str(recv_client) + " " + str(amount)
             txn_info = (client_name, txn_id)
             if self.block_chain.txn_committed(txn_info):
                 self.response_client_txn(txn_info)
