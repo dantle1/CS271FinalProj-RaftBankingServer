@@ -519,6 +519,15 @@ class ServerNode():
         if name in self.other_names:
             self.name2lastReqTime[name] = time.time()
 
+    def check_nodes_up(self):
+        self.update_crash_list()
+        total_nodes = len(self.name2lastReqTime)
+        alive_nodes = total_nodes - len(self.crash_list)
+        if alive_nodes < 2:
+            return True
+        else:
+            return False
+
     def update_crash_list(self):
         if self.role == follower_role:
             return
@@ -620,6 +629,7 @@ class ServerNode():
 
     def response_client_txn(self, txn_info):
         commit_init_txns = self.calculate_balance()
+        nodes_down = self.check_nodes_up()
         for commit_txn in commit_init_txns:
             data = {
                 "type" : txnCommitType,
@@ -628,7 +638,8 @@ class ServerNode():
                 "txn_id" : txn_info[1],
                 "new_sender_balance" :  self.dataStore[commit_txn[0]],
                 "new_receiver_balance" : self.dataStore[commit_txn[1]],
-                "leader_hint" : self.leader
+                "leader_hint" : self.leader,
+                "nodes_down" : nodes_down
             }
             print("-----response txn")
             data = json.dumps(data)

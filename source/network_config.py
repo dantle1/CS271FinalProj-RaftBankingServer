@@ -1,4 +1,5 @@
 import json
+from PreProcess import *
 
 start_port = 10000
 delay = 5
@@ -104,6 +105,7 @@ client_configs = {
     'B': clientB
 }
 
+process_file("input_file.txt")
 
 with open('input_file_1.txt', 'r') as myfile:
     content = myfile.readlines()

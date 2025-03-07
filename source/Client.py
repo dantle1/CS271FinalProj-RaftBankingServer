@@ -81,18 +81,22 @@ class Client():
         self.userInput()
 
     def handle_complete_txn(self, req):
-        print("---complete")
-        txn_id = req['txn_id']
-        if txn_id in self.txns:
-            self.txns.pop(txn_id)
-        else:
+        if req['nodes_down']: 
+            print("ERROR: Aborted transaction due to ot enough nodes active in cluster")
             return
-        self.sender_balance = int(req['new_sender_balance'])
-        self.receiver_balance = int(req['new_receiver_balance'])
-        self.estimate_leader = req['leader_hint']
-        # print("Leader: ", self.estimate_leader)
-        # print("updated sender balance:", self.sender_balance)
-        # print("updated receiver balance:", self.receiver_balance)
+        else: 
+            print("---complete")
+            txn_id = req['txn_id']
+            if txn_id in self.txns:
+                self.txns.pop(txn_id)
+            else:
+                return
+            self.sender_balance = int(req['new_sender_balance'])
+            self.receiver_balance = int(req['new_receiver_balance'])
+            self.estimate_leader = req['leader_hint']
+            # print("Leader: ", self.estimate_leader)
+            # print("updated sender balance:", self.sender_balance)
+            # print("updated receiver balance:", self.receiver_balance)
 
     def handle_cmds(self):
         self.txns = {}
