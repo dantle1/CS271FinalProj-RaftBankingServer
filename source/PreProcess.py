@@ -8,7 +8,7 @@ def process_file(input_filename="input.txt"):
     }
 
     # Open all output files in append mode
-    file_handles = {key: open(filename, "a") for key, filename in output_files.items()}
+    file_handles = {key: open(filename, "w") for key, filename in output_files.items()}
 
     try:
         # Read input file line by line
@@ -37,7 +37,7 @@ def process_file(input_filename="input.txt"):
                     category = "crossShard"
 
                 # Write to the corresponding file with line number prepended
-                file_handles[category].write(f"{line_number} {line}")
+                file_handles[category].write(f"{line}")
 
     finally:
         # Close all file handles

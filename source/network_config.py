@@ -107,17 +107,17 @@ client_configs = {
 
 process_file("input_file.txt")
 
-with open('input_file_1.txt', 'r') as myfile:
+with open('c1.txt', 'r') as myfile:
     content = myfile.readlines()
 transaction_list_1 = [x.strip() for x in content]
 #print(transaction_list_1)
 
-with open('input_file_2.txt', 'r') as myfile:
+with open('c2.txt', 'r') as myfile:
     content = myfile.readlines()
 transaction_list_2 = [x.strip() for x in content]
 #print(transaction_list_2)
 
-with open('input_file_3.txt', 'r') as myfile:
+with open('c3.txt', 'r') as myfile:
     content = myfile.readlines()
 transaction_list_3 = [x.strip() for x in content]
 #print(transaction_list_3)

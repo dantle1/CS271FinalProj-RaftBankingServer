@@ -100,7 +100,7 @@ class ServerNode():
             if getClusterofItem(int(sender)) != self.cluster and getClusterofItem(int(receiver)) != self.cluster:
                 continue
             if self.dataStore[sender] >= amount:
-                with open(self.cluster_file, "a") as myfile:
+                with open(self.cluster_file, "w") as myfile:
                     myfile.write(f"{commitIdx} {block.term} {sender} {receiver} {amount} \n")
                     self.dataStore[sender] -= amount
                     self.dataStore[receiver] += amount
@@ -430,7 +430,7 @@ class ServerNode():
         if self.role != leader_role:
             return
         print("-----print balance")
-        self.log.print_chain()
+        # self.log.print_chain()
         client = req['source']
         item_id = req['item_id']
         item_balance = self.dataStore[str(item_id)]
@@ -508,7 +508,7 @@ class ServerNode():
                 new_block.add_info(txn_info_a)
                 new_block.add_info(txn_info_b)
                 self.log.append(new_block)
-                self.log.print_chain()
+               # self.log.print_chain()
                 self.txn_buffer = []
 
     def  update_last_req_time(self, req):
@@ -664,13 +664,13 @@ class ServerNode():
                 continue
             
             if time.time() - self.name2lastContactTime[name] > interval:
-                self.send_appendEntries(name, False)
+                self.send_appendEntries(name, is_heartbeat=False)
                 self.name2lastContactTime[name] = time.time()
         
 
 def main():
     server_name = "server" + sys.argv[1]
-    print(server_configs[server_name]['cluster'])
+    #print(server_configs[server_name]['cluster'])
     if server_configs[server_name]['cluster'] == 1:
         transaction_list = transaction_list_1
     elif server_configs[server_name]['cluster'] == 2:

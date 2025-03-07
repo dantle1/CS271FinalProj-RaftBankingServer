@@ -137,7 +137,6 @@ class Client():
         cluster_a = getClusterofItem(int(ta))
         cluster_b = getClusterofItem(int(tb))
         # intra shard transaction
-        
         if cluster_a == cluster_b:
             data = {
             'type': clientCommandType,
