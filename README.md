@@ -13,3 +13,5 @@ This project is designed to simulate a distributed banking system.  The banking 
    ```commitlist <cluster_id>```
 6. To start a transaction, run on client:
    ```transfer <item_x> <item_y> <amt>```
+7. To partition a certain server (for demo purposes), run on client:
+   ```partition <server(1-9)>```
