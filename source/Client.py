@@ -81,7 +81,7 @@ class Client():
         self.userInput()
 
     def handle_complete_txn(self, req):
-        if req['nodes_down']: 
+        if not req['enough_nodes']: 
             print("ERROR: Aborted transaction due to ot enough nodes active in cluster")
             return
         else: 

@@ -88,7 +88,9 @@ class ServerNode():
         # Calculate balances based on committed transactions
         commit_init_transactions = []
         commitIdx = 0
+        # self.log.print_chain()
         for block in self.log.chain[:self.log.commitIndex]:
+            status = "PENDING"
             transaction = block.ta
             t = transaction.split()
             if len(t) != 3:
@@ -99,18 +101,24 @@ class ServerNode():
             # server not involved with transactions for different clusters
             if getClusterofItem(int(sender)) != self.cluster and getClusterofItem(int(receiver)) != self.cluster:
                 continue
-            if self.dataStore[sender] >= amount:
-                with open(self.cluster_file, "w") as myfile:
+            elif not self.check_nodes_up(): 
+                print(f"ABORTED: Not enough active nodes in cluster, need at least 2.")
+                status = "ABORT"
+                return
+            elif self.dataStore[sender] < amount:
+                print(f"ERROR: Aborted transaction {t} due to insufficient funds")
+                status = "ABORT"
+                continue
+            else:
+                status = "COMMIT"
+                with open(self.cluster_file, "a") as myfile:
                     myfile.write(f"{commitIdx} {block.term} {sender} {receiver} {amount} \n")
                     self.dataStore[sender] -= amount
                     self.dataStore[receiver] += amount
                     commitIdx += 1
-            else: 
-                print(f"ERROR: Aborted transaction {t} due to insufficient funds")
-                continue
             # print(f"sender {sender} balance after: {self.dataStore[sender]}")
             # print(f"receiver {receiver} balance after: {self.dataStore[receiver]}")
-            commit_init_transactions.append((sender, receiver))
+            commit_init_transactions.append((sender, receiver, status))
         return commit_init_transactions
             
     def init_txns_list(self, txns):
@@ -521,12 +529,14 @@ class ServerNode():
 
     def check_nodes_up(self):
         self.update_crash_list()
-        total_nodes = len(self.name2lastReqTime)
+        total_nodes = len(self.name2lastReqTime) + 1
+        print("Total Nodes: " , total_nodes)
         alive_nodes = total_nodes - len(self.crash_list)
+        print("Alive Nodes: ", alive_nodes)
         if alive_nodes < 2:
-            return True
-        else:
             return False
+        else:
+            return True
 
     def update_crash_list(self):
         if self.role == follower_role:
@@ -629,22 +639,23 @@ class ServerNode():
 
     def response_client_txn(self, txn_info):
         commit_init_txns = self.calculate_balance()
-        nodes_down = self.check_nodes_up()
-        for commit_txn in commit_init_txns:
-            data = {
-                "type" : txnCommitType,
-                "term" : self.term,
-                "source" : self.name,
-                "txn_id" : txn_info[1],
-                "new_sender_balance" :  self.dataStore[commit_txn[0]],
-                "new_receiver_balance" : self.dataStore[commit_txn[1]],
-                "leader_hint" : self.leader,
-                "nodes_down" : nodes_down
-            }
-            print("-----response txn")
-            data = json.dumps(data)
-            client = txn_info[0]
-            self.tcpServer.send(client, data)
+        enough_nodes = self.check_nodes_up()
+        if commit_init_txns:
+            for commit_txn in commit_init_txns:
+                data = {
+                    "type" : txnCommitType,
+                    "term" : self.term,
+                    "source" : self.name,
+                    "txn_id" : txn_info[1],
+                    "new_sender_balance" :  self.dataStore[commit_txn[0]],
+                    "new_receiver_balance" : self.dataStore[commit_txn[1]],
+                    "leader_hint" : self.leader,
+                    "enough_nodes" : enough_nodes
+                }
+                print("-----response txn")
+                data = json.dumps(data)
+                client = txn_info[0]
+                self.tcpServer.send(client, data)
 
     def redirect_clientCommand(self, name, req):
         data = json.dumps(req)

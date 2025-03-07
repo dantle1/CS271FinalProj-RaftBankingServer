@@ -9,10 +9,7 @@ class Block:
 
     def add_info(self, info):
         self.infos.append(info)
-
-    def create_dummy_block():
-        return Block("", 0)
-
+        
     def __str__(self):
         return "term: %d, ta: %s" % (self.term, self.ta)
 
@@ -35,7 +32,7 @@ class Block:
 
 class Log():
     def __init__(self):
-        self.chain = [Block.create_dummy_block()]
+        self.chain = []
         self.commitIndex = 0
         
     def append(self, block):
