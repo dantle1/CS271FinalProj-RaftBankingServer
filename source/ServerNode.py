@@ -30,17 +30,25 @@ def start_all_servers():
 class ServerNode():
     def __init__(self, config_name, server_configs, client_configs, avg_election_timeout=10,
                  init_txns=None):
+
+        # server configuration related
         config = server_configs[config_name]
         self.name = config_name
         self.config = config
+        
+        # cluster-related
         self.cluster = config['cluster']
         self.dataStore = dataStore(self.cluster)
+        self.cluster_file = f"../logs/cluster_{self.cluster}_log.txt"
+        print("Writing commits to ", self.cluster_file)
+        self.log = Log()
+        
+        # raft election
         self.role = follower_role
         self.avg_election_timeout = avg_election_timeout
         self.election_timeout = gen_timeout(self.avg_election_timeout)
         self.vote_for = None
         self.received_vote = 0
-        self.log = Log()
         self.term = 0
         self.other_names = [name for name in server_configs if server_configs[name]['cluster'] == self.cluster]
         self.other_names.remove(self.name)
@@ -50,10 +58,11 @@ class ServerNode():
         self.rpc_queue = queue.Queue()
         all_configs = dict(server_configs)
         all_configs.update(client_configs)
+
+        # threading
         self.tcpServer = RaftTCPServer(self.name, all_configs)
         self.handler_thread = threading.Thread(
             target=self.handle_rpc_queue, daemon=True)
-
         self.timeout_thread = threading.Thread(
             target=self.check_time_out, daemon=True)
         self.notify_timeout_thread_refresh_time_event = threading.Event()
@@ -73,32 +82,37 @@ class ServerNode():
         self.name2lastReqTime = {}
         for name in self.other_names:
             self.name2lastReqTime[name] = time.time()
-
         self.init_txns_list(init_txns)
-        self.client2init_balance = {}
-        # for client in client_configs:
-        #     self.client2init_balance[client] = float(client_configs[client]["initial_amount"])
-        # print("init balance:", self.client2init_balance)
 
     def calculate_balance(self):
-        client2balance = {}
         # Calculate balances based on committed transactions
-        for block in self.log.chain[:self.log.commitIndex + 1]:
+        commit_init_transactions = []
+        commitIdx = 0
+        for block in self.log.chain[:self.log.commitIndex]:
             transaction = block.ta
             t = transaction.split()
             if len(t) != 3:
                 continue
             sender, receiver, amount = t[0], t[1], int(t[2])
-            print(sender)
-            print(receiver)
-            print(amount)
-            if sender in client2balance:
-                client2balance[sender] -= amount
-            if receiver in client2balance:
-                client2balance[receiver] += amount
-        # self.log.print_chain()
-        return client2balance
-
+            # print(f"sender {sender} balance before: {self.dataStore[sender]}")
+            # print(f"receiver {receiver} balance before: {self.dataStore[receiver]}")
+            # server not involved with transactions for different clusters
+            if getClusterofItem(int(sender)) != self.cluster and getClusterofItem(int(receiver)) != self.cluster:
+                continue
+            if self.dataStore[sender] >= amount:
+                with open(self.cluster_file, "a") as myfile:
+                    myfile.write(f"{commitIdx} {block.term} {sender} {receiver} {amount} \n")
+                    self.dataStore[sender] -= amount
+                    self.dataStore[receiver] += amount
+                    commitIdx += 1
+            else: 
+                print(f"ERROR: Aborted transaction {t} due to insufficient funds")
+                continue
+            # print(f"sender {sender} balance after: {self.dataStore[sender]}")
+            # print(f"receiver {receiver} balance after: {self.dataStore[receiver]}")
+            commit_init_transactions.append((sender, receiver))
+        return commit_init_transactions
+            
     def init_txns_list(self, txns):
         for i in range(len(txns)):
             new_block = Block(txns[i], self.term)
@@ -167,11 +181,9 @@ class ServerNode():
         self.vote_for = self.name
         self.received_vote = 1
         self.send_requestVotes()
-        # print("majority=", self.majority())
         # print(self.crash_list)
-        if self.received_vote >= self.majority():
+        if self.received_vote >= 2:
             self.trans_leader()
-
 
     def trans_follower(self):
         # step down
@@ -328,7 +340,7 @@ class ServerNode():
         if self.role != candidate_role:
             return
 
-        majority = self.majority()
+        majority = 2
         if req['voteGranted']:
             assert req['term'] <= self.term
             if req['term'] == self.term:
@@ -343,9 +355,9 @@ class ServerNode():
         self.name2loggedIndex[name].add(next_index-1)
         self.name2nextIndex[name] = next_index
         
-    def majority(self):
-        servers_in_cluster = [server for server in server_configs.values() if server['cluster'] == self.cluster]
-        return int((len(servers_in_cluster)-len(self.crash_list))/2)+1
+    # def majority(self):
+    #     servers_in_cluster = [server for server in server_configs.values() if server['cluster'] == self.cluster]
+    #     return int((len(servers_in_cluster)-len(self.crash_list))/2)+1
         # return int(len(configs)/2)+1
 
     def count_logged_nodes_num(self, i):
@@ -362,7 +374,7 @@ class ServerNode():
         start = self.log.get_commitIndex() + 1
         end = len(self.log)
         for i in range(start, end):
-            if self.count_logged_nodes_num(i) >= self.majority():
+            if self.count_logged_nodes_num(i) >= 2:
                 self.log.commit_next()
             else:
                 break
@@ -431,6 +443,15 @@ class ServerNode():
         data = json.dumps(data)
         self.tcpServer.send(client, data)
 
+    def notify_client_leader(self, client_name, leader_name):
+        response = {
+            "type": "leaderRedirect",
+            "leader": leader_name,
+            "cluster_id": self.cluster
+        }
+        self.tcpServer.send(client_name, json.dumps(response))
+        print(f"Redirecting client {client_name} to leader {leader_name}")
+
     def handle_clientCommand_req(self, req):
         '''
         data = {
@@ -441,20 +462,24 @@ class ServerNode():
         }
         '''
         if self.role == candidate_role:
-            print('CANDIDATE')
+            # print('CANDIDATE')
             # discard, let client reissue
             return
         elif self.role == follower_role:
-            print('FOLLOWER')
+            #print('FOLLOWER')
             # redirect
-            name = self.leader
-            if self.leader == None:
-                if len(self.other_names) == 0:
-                    return
-                name = self.other_names[0]
-            self.redirect_clientCommand(name, req)
+            # Redirect client with leader info
+            if self.leader:
+                leader_name = self.leader
+            else:
+                # If the leader is unknown, pick a random server (may not be accurate)
+                leader_name = self.other_names[0] if self.other_names else None
+            if leader_name:
+                self.notify_client_leader(req['source'], leader_name)
+            else:
+                print("No known leader to redirect to. Dropping request.")
         elif self.role == leader_role:
-            print('LEADER')
+            #print('LEADER')
             send_client = req['send_client']
             recv_client = req['recv_client']
             amount = req['amount']
@@ -475,7 +500,7 @@ class ServerNode():
 
             self.txn_buffer.append((temp, txn_info))
             if len(self.txn_buffer) == 2:
-                new_block = Block(self.txn_buffer[0][0], self.txn_buffer[1][0], self.term, self.log.get(-1).hash())
+                new_block = Block(self.txn_buffer[0][0], self.term)
                 # client_name = txn_buffer[1][0]
                 # txn_id = txn_buffer[1][1]
                 txn_info_a = self.txn_buffer[0][1]
@@ -483,6 +508,7 @@ class ServerNode():
                 new_block.add_info(txn_info_a)
                 new_block.add_info(txn_info_b)
                 self.log.append(new_block)
+                self.log.print_chain()
                 self.txn_buffer = []
 
     def  update_last_req_time(self, req):
@@ -593,19 +619,21 @@ class ServerNode():
         self.tcpServer.send(leader, data)
 
     def response_client_txn(self, txn_info):
-        client = txn_info[0]
-        client2balance = self.calculate_balance()
-        data = {
-            "type" : txnCommitType,
-            "term" : self.term,
-            "source" : self.name,
-            "txn_id" : txn_info[1],
-            "balance" :  client2balance[client]
-        }
-        print("-----response txn")
-        data = json.dumps(data)
-        client = txn_info[0]
-        self.tcpServer.send(client, data)
+        commit_init_txns = self.calculate_balance()
+        for commit_txn in commit_init_txns:
+            data = {
+                "type" : txnCommitType,
+                "term" : self.term,
+                "source" : self.name,
+                "txn_id" : txn_info[1],
+                "new_sender_balance" :  self.dataStore[commit_txn[0]],
+                "new_receiver_balance" : self.dataStore[commit_txn[1]],
+                "leader_hint" : self.leader
+            }
+            print("-----response txn")
+            data = json.dumps(data)
+            client = txn_info[0]
+            self.tcpServer.send(client, data)
 
     def redirect_clientCommand(self, name, req):
         data = json.dumps(req)
@@ -631,6 +659,13 @@ class ServerNode():
 
 def main():
     server_name = "server" + sys.argv[1]
+    print(server_configs[server_name]['cluster'])
+    if server_configs[server_name]['cluster'] == 1:
+        transaction_list = transaction_list_1
+    elif server_configs[server_name]['cluster'] == 2:
+        transaction_list = transaction_list_2
+    elif server_configs[server_name]['cluster'] == 3:
+        transaction_list = transaction_list_3
     server = ServerNode(server_name, server_configs, client_configs, init_txns=transaction_list)
     server.start()
 

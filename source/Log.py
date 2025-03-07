@@ -6,18 +6,6 @@ class Block:
         self.ta = ta
         self.term = term
         self.infos = []
-        # The other attributes are now omitted for simplicity
-        # self.prev_header_hash = prev_header_hash
-        # self.txn_hash = sha256_byte(sha256_str(ta))
-        # self.nonce = nonce
-        # if nonce == None:
-        #     self.nonce = find_valid_nonce(ta)
-        # self.final_hash = sha256_byte(self.txn_hash + self.nonce)
-
-    # def hash(self):
-    #     val = sha256_str(str(self.term) + self.prev_header_hash.hex()
-    #                      + self.txn_hash.hex() + self.nonce.hex())
-    #     return val
 
     def add_info(self, info):
         self.infos.append(info)
@@ -30,19 +18,13 @@ class Block:
 
     def to_dict(self):
         return {
-            "txn": self.ta,  # Changed to hold only one transaction
-            "term": self.term,
-            # "nonce": encode_bytes(self.nonce),
-            # "prev_header_hash": encode_bytes(self.prev_header_hash),
-            # "txn_hash": encode_bytes(self.txn_hash),
-            # "final_hash": encode_bytes(self.final_hash)
+            "txn": self.ta,
+            "term": self.term
         }
 
     def from_dict(d):
-        ta = d["txn"]  # Changed to match single transaction
+        ta = d["txn"] 
         term = d["term"]
-        # nonce = decode_bytes(d["nonce"])
-        # prev_header_hash = decode_bytes(d["prev_header_hash"])
         return Block(ta, term)
 
     def print_block(self):

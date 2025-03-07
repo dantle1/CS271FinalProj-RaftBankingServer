@@ -30,4 +30,3 @@ def gen_timeout(t=4):
     return timeout in [t, 2t]
     '''
     return random.random() * t + t
-

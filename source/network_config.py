@@ -90,15 +90,13 @@ server_configs = {
 clientA = {
     "send_port" :start_port+18,
     "recv_port": start_port+19,
-    "name" : "A",
-    "initial_amount" : 10
+    "name" : "A"
 }
 
 clientB = {
     "send_port" :start_port+20,
     "recv_port": start_port+21,
-    "name" : "B",
-    "initial_amount" : 10
+    "name" : "B"
 }
 
 client_configs = {
@@ -106,10 +104,21 @@ client_configs = {
     'B': clientB
 }
 
-with open('input_file.txt', 'r') as myfile:
+
+with open('input_file_1.txt', 'r') as myfile:
     content = myfile.readlines()
-transaction_list = [x.strip() for x in content]
-print(transaction_list)
+transaction_list_1 = [x.strip() for x in content]
+#print(transaction_list_1)
+
+with open('input_file_2.txt', 'r') as myfile:
+    content = myfile.readlines()
+transaction_list_2 = [x.strip() for x in content]
+#print(transaction_list_2)
+
+with open('input_file_3.txt', 'r') as myfile:
+    content = myfile.readlines()
+transaction_list_3 = [x.strip() for x in content]
+#print(transaction_list_3)
 
 with open('../logs/datastore.json', 'r') as myfile:
     datastore = json.load(myfile)
