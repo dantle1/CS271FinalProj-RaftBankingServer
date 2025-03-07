@@ -86,10 +86,14 @@ class RaftTCPServer():
         # print(self.name2outports[name])
         try:
             port = self.name2outports[name]
+            # print("port: ", port)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # print("1")
             server_address = (self.host, port)
             sock.connect(server_address)
+            # print("2")
             push_data(sock, data)
+            # print("3")
             sock.close()
         except Exception as e:
             print("ERROR: ",  e)

@@ -33,6 +33,7 @@ class Client():
         print('2. balance/b <x> : Print current balance of X.')
         print('3. commitlist/c <x>: Print all committed transactions for Xth cluster.')
         print('4. help/h: Show command list again.')
+        print('5. partition/p <X>: partition serverX from a cluster.')
     
     def userInput(self):
         print('Welcome to the Bank Client!')
@@ -59,6 +60,9 @@ class Client():
                 parsed_text = input_txn.split()
                 cluster_id = int(parsed_text[1])
                 self.print_commit_list(cluster_id)
+            elif re.match(r"^(?:partition|p) (.+)$", input_txn):
+                parsed_text = input_txn.split()
+                self.partition_server(parsed_text[1])
             else:
                 print('No Valid Command, Select from one below:')
                 self.commandList()
@@ -149,7 +153,7 @@ class Client():
              }
             leader = self.cluster_leaders[cluster_a]
             servers_in_cluster = [name for name in self.server_names if server_configs[name]['cluster'] == cluster_a]
-            if self.estimate_leader == None:
+            if leader == None:
                 leader = random.choice(servers_in_cluster)
             print(f"sending txn to server {leader}, who is the leader of cluster {cluster_a}")
             data = json.dumps(data)
@@ -167,20 +171,90 @@ class Client():
             'txn_id' : txn_id,
             'source' : self.name
              }
-            leader_1 = self.estimate_leader
-            leader_2 = self.estimate_leader_2
+            leader_1 = self.cluster_leaders[cluster_a]
+            leader_2 = self.cluster_leaders[cluster_b]
             servers_in_cluster1 = [name for name in self.server_names if server_configs[name]['cluster'] == cluster_a]
             servers_in_cluster2 = [name for name in self.server_names if server_configs[name]['cluster'] == cluster_b]
-            if self.estimate_leader == None:
-                leader1 = random.choice(servers_in_cluster1)
-            if self.estimate_leader_2 == None:
-                leader2 = random.choice(servers_in_cluster2)
+            if leader_1 == None:
+                leader_1 = random.choice(servers_in_cluster1)
+            if leader_2 == None:
+                leader_2 = random.choice(servers_in_cluster2)
             print(f"sending txn to server {leader_1}, who is the leader of cluster {cluster_a}")
             print(f"sending txn to server {leader_2}, who is the leader of cluster {cluster_b}")
             data = json.dumps(data)
             self.tcpServer.send(leader_1, data)
             self.tcpServer.send(leader_2, data)
 
+    def send_prepare_message(self, txn_id, leader_1, leader_2, cluster_a, cluster_b, ta, tb, amount, clientCommandType):
+        """
+        Send prepare messages to cluster leaders to initiate the first phase of 2PC.
+        Leaders will validate the transaction using Raft consensus within their clusters.
+
+        Args:
+            txn_id: Unique transaction identifier
+            leader_1: Leader of first cluster
+            leader_2: Leader of second cluster
+            cluster_a: First cluster identifier
+            cluster_b: Second cluster identifier
+            ta: Sender client
+            tb: Receiver client
+            amount: Transaction amount
+            clientCommandType: Type of transaction
+        """
+        print(f"Initiating 2PC prepare phase for transaction {txn_id}")
+
+        # Create prepare message with all necessary transaction details
+        prepare_msg_1 = {
+            'phase': '2PC_PREPARE',
+            'type': clientCommandType,
+            'isCross': True,
+            'send_client': ta,
+            'recv_client': tb,
+            'amount': amount,
+            'txn_id': txn_id,
+            'source': self.name,
+            'sourceCluster': cluster_a,
+            'targetCluster': cluster_b,
+            'validation_checks': [
+                'sufficient_funds',
+                'account_exists',
+                'quorum_available'
+            ]
+        }
+
+        prepare_msg_2 = prepare_msg_1.copy()
+        prepare_msg_2['sourceCluster'] = cluster_b
+        prepare_msg_2['targetCluster'] = cluster_a
+
+        # Log the prepare message sending
+        print(f"Sending PREPARE message to leader {leader_1} of cluster {cluster_a}")
+        print(f"Sending PREPARE message to leader {leader_2} of cluster {cluster_b}")
+
+        # Add transaction to pending transactions map
+        self.pending_txns[txn_id] = {
+            'status': 'PREPARING',
+            'clusters_prepared': set(),
+            'clusters_committed': set(),
+            'initiated_at': time.time(),
+            'transaction_details': {
+                'send_client': ta,
+                'recv_client': tb,
+                'amount': amount,
+                'type': clientCommandType
+            },
+            'involved_clusters': [cluster_a, cluster_b],
+            'involved_leaders': [leader_1, leader_2]
+        }
+
+        # Send prepare messages to both cluster leaders
+        try:
+            self.tcpServer.send(leader_1, json.dumps(prepare_msg_1))
+            self.tcpServer.send(leader_2, json.dumps(prepare_msg_2))
+            print(f"PREPARE messages sent successfully for transaction {txn_id}")
+        except Exception as e:
+            print(f"Failed to send PREPARE messages: {str(e)}")
+            # Handle the error (e.g., abort the transaction)
+            self.abort_transaction(txn_id)
 
     def request_balance(self, item_id):
         data = {
@@ -193,6 +267,7 @@ class Client():
         for server in servers_in_cluster:
             # print(f"Requesting balance for Client {item_id} from {server}")
             str_data = json.dumps(data)
+            # print(server)
             self.tcpServer.send(server, str_data)
 
     def upload_transaction(self, input_txn):
@@ -210,6 +285,23 @@ class Client():
         print(list(self.txn_queue.queue))
         self.id2amount[self.txn_id] = amount
         self.txn_id += 1
+
+    def partition_server(self, part_server_name):
+        data = {
+            "type" : partitionServerType,
+            "part_server" : part_server_name
+        }
+        data = json.dumps(data)
+        neighbor_servers = []
+        for name in self.server_names:
+            # print(server)
+            # print(f"Server: {name}, Config: {server_configs[name]}")
+            # print(server_configs[name]['cluster'])
+            # print(server_configs[part_server_name]['cluster'])
+            if server_configs[name]['cluster'] == server_configs[part_server_name]['cluster']:
+                # neighbor_servers.append(server_configs[server]['id'])      
+                print(name)
+                self.tcpServer.send(name, data)
 
 def client_main():
     client_name = sys.argv[1]

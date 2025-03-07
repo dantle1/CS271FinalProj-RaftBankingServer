@@ -17,6 +17,7 @@ startElectionType = "startElection"
 clientCommandType = "clientCommand"
 txnCommitType = "txnCommit"
 printBalanceType = "printBalance"
+partitionServerType = "partitionServer"
 
 
 def start_all_servers():
@@ -493,7 +494,7 @@ class ServerNode():
             amount = req['amount']
             txn_id = req['txn_id']
             client_name = req['source']
-
+            isCross = req['isCross']
             temp = str(send_client) + " " + str(recv_client) + " " + str(amount)
             txn_info = (client_name, txn_id)
             if self.log.txn_committed(txn_info):
@@ -566,8 +567,21 @@ class ServerNode():
             self.handle_clientCommand_req(req)
         elif req_type == printBalanceType:
             self.handle_printBalance_req(req)
+        elif req_type == partitionServerType:
+            self.handle_partitionServer_req(req)
         else:
             print("not implemented:", req)
+
+    def handle_partitionServer_req(self, req):
+        partitionServer = req['part_server']
+        print("Other Servers before: ", self.other_names)
+        if partitionServer == self.name:
+            self.other_names.clear()
+        if partitionServer in self.other_names:
+            self.other_names.remove(partitionServer)
+        print("Other Servers After:" , self.other_names)
+        if self.role == leader_role:
+            self.trans_follower()
 
     def handle_rpc_queue(self):
         '''
@@ -579,9 +593,12 @@ class ServerNode():
                 self.check_update_commit()
                 self.leader_update_followers()
             while not self.rpc_queue.empty():
+                print(list(self.rpc_queue.queue))
                 req = self.rpc_queue.get()
-                if (req["type"] == appendEntriesType and req['is_heartbeat'] == False):
-                    print(self.name, "term", self.term, ":", req)
+                if type(req) == str:
+                    req = json.loads(req)
+                # print(type(req))
+                print(self.name, "term", self.term, ":", req)
                 self.handle_req(req)
         return
 
